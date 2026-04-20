@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 2024 — Las Vegas Grand Prix</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading-screen">
+  <div class="f1-logo">F1</div>
+  <div class="loading-text">LOADING CIRCUITS...</div>
+</div>
+
+<!-- Game canvas (Three.js renders here) -->
+<canvas id="game-canvas"></canvas>
+
+<!-- Race wrapper - visible during race -->
+<div id="race-overlay">
+  <!-- HUD injected by HUD.js -->
+  <div id="hud"></div>
+
+  <!-- F1 start lights -->
+  <div id="start-lights">
+    <div class="start-light" id="sl0"></div>
+    <div class="start-light" id="sl1"></div>
+    <div class="start-light" id="sl2"></div>
+    <div class="start-light" id="sl3"></div>
+    <div class="start-light" id="sl4"></div>
+  </div>
+  <!-- Countdown overlay -->
+  <div id="countdown-display"></div>
+</div>
+
+<!-- Pause menu -->
+<div id="pause-overlay">
+  <h2>PAUSED</h2>
+  <button id="btn-resume"    class="overlay-btn">▶  RESUME</button>
+  <button id="btn-main-menu" class="overlay-btn">⏮  MAIN MENU</button>
+</div>
+
+<!-- Race finish screen -->
+<div id="race-finish-overlay">
+  <h2>🏁 RACE COMPLETE</h2>
+  <div>TOTAL TIME</div>
+  <div id="finish-time">0:00.000</div>
+  <div class="finish-btns">
+    <button id="btn-finish-restart" class="overlay-btn">↺  RESTART</button>
+    <button id="btn-finish-menu"    class="overlay-btn">⏮  MAIN MENU</button>
+  </div>
+</div>
+
+<!-- Main menu (injected by Menu.js) -->
+<div id="menu" style="display:none"></div>
+
+<!-- ===== Scripts ===== -->
+<!-- Three.js r160 via jsdelivr (more reliable) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<!-- Game modules (order matters: data → components → orchestrators) -->
+<script src="js/AudioManager.js"></script>
+<script src="js/tracks/lasvegas.js"></script>
+<script src="js/Track.js"></script>
+<script src="js/Car.js"></script>
+<script src="js/Buildings.js"></script>
+<script src="js/HUD.js"></script>
+<script src="js/Game.js"></script>
+<script src="js/Menu.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>

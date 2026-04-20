@@ -1,0 +1,422 @@
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --f1-red:    #e10600;
+  --f1-silver: #c0c0c0;
+  --neon-blue: #00e5ff;
+  --neon-grn:  #00ff88;
+  --dark-bg:   #05050f;
+  --card-bg:   rgba(10, 10, 30, 0.92);
+  --border:    rgba(0, 229, 255, 0.2);
+  --font-main: 'Orbitron', 'Share Tech Mono', monospace;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+body {
+  background: #000;
+  color: #fff;
+  font-family: var(--font-main);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ===== CANVAS ===== */
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0; left: 0;
+}
+
+/* ===== LOADING SCREEN ===== */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--dark-bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.5s;
+}
+#loading-screen .f1-logo {
+  font-size: 80px; font-weight: 900; color: var(--f1-red);
+  text-shadow: 0 0 30px var(--f1-red);
+  letter-spacing: -2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+#loading-screen .loading-text {
+  font-size: 14px; letter-spacing: 4px; color: #aaa;
+  margin-top: 16px; animation: fadein 1s ease;
+}
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+
+/* ===== MAIN MENU ===== */
+#menu {
+  position: fixed; inset: 0; z-index: 100;
+  background: linear-gradient(135deg, #05050f 0%, #0d0d22 50%, #050510 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Animated background grid lines */
+#menu::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridScroll 20s linear infinite;
+}
+@keyframes gridScroll { to { background-position: 0 60px; } }
+
+#menu-inner {
+  position: relative; z-index: 1;
+  width: min(1300px, 96vw);
+  height: min(800px, 94vh);
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Header */
+#menu-header {
+  background: linear-gradient(90deg, var(--f1-red) 0%, #8a0000 100%);
+  padding: 14px 28px;
+  display: flex; align-items: center; gap: 16px;
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+}
+#menu-f1-logo {
+  font-size: 42px; font-weight: 900; color: #fff;
+  letter-spacing: -3px; text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+}
+#menu-title { font-size: 22px; font-weight: 700; letter-spacing: 6px; }
+#menu-subtitle { font-size: 11px; letter-spacing: 3px; opacity: 0.7; margin-top: 2px; }
+#menu-season { margin-left: auto; font-size: 13px; letter-spacing: 2px; opacity: 0.85; }
+
+/* Content area */
+#menu-content {
+  flex: 1; display: flex; overflow: hidden;
+}
+
+/* Left: circuit list */
+#menu-left {
+  width: 280px; min-width: 240px;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.menu-section-title {
+  padding: 10px 14px;
+  font-size: 10px; letter-spacing: 3px; color: var(--neon-blue);
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,229,255,0.04);
+}
+#circuit-list {
+  flex: 1; overflow-y: auto; scrollbar-width: thin;
+  scrollbar-color: var(--neon-blue) transparent;
+}
+.circuit-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; font-size: 10px; letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: default; transition: background 0.15s;
+}
+.circuit-item.active { cursor: pointer; }
+.circuit-item.active:hover { background: rgba(0,229,255,0.08); }
+.circuit-item.selected { background: rgba(0,229,255,0.12); border-left: 3px solid var(--neon-blue); }
+.circuit-item.locked { opacity: 0.35; }
+.circuit-flag { font-size: 16px; }
+.circuit-name { flex: 1; }
+.circuit-badge { background: var(--neon-grn); color: #000; font-size: 8px; padding: 2px 5px; border-radius: 3px; font-weight: 700; }
+.circuit-lock { opacity: 0.5; font-size: 11px; }
+
+/* Center: preview */
+#menu-center {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding: 18px; gap: 14px; overflow: hidden;
+}
+#circuit-preview {
+  position: relative; flex-shrink: 0;
+}
+#preview-canvas {
+  display: block; border-radius: 6px;
+  border: 1px solid var(--border);
+}
+#preview-locked {
+  position: absolute; inset: 0;
+  background: rgba(5,5,15,0.85);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 12px; letter-spacing: 3px; gap: 8px;
+}
+.lock-icon { font-size: 32px; }
+#circuit-info { width: 100%; }
+#ci-name { font-size: 15px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
+#ci-details { display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; opacity: 0.7; margin-bottom: 6px; }
+#ci-stats { font-size: 10px; opacity: 0.55; letter-spacing: 1px; line-height: 1.7; }
+
+/* Right: settings */
+#menu-right {
+  width: 260px; min-width: 220px;
+  border-left: 1px solid var(--border);
+  overflow-y: auto; scrollbar-width: thin;
+}
+.setting-group {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.setting-label { font-size: 9px; letter-spacing: 3px; color: var(--neon-blue); margin-bottom: 8px; }
+
+#livery-options, #tire-options, #laps-options {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.livery-opt {
+  padding: 6px 10px; font-size: 9px; letter-spacing: 1px; cursor: pointer;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  border-radius: 3px; border: 2px solid transparent;
+  transition: border 0.15s, transform 0.1s;
+}
+.livery-opt.selected { border-color: #fff; transform: scale(1.05); }
+.livery-opt:hover { border-color: rgba(255,255,255,0.5); }
+
+.tire-opt {
+  padding: 6px 10px; font-size: 9px; letter-spacing: 1px; cursor: pointer;
+  background: rgba(255,255,255,0.06); border-radius: 3px;
+  border: 2px solid transparent; color: var(--tc); transition: border 0.15s;
+}
+.tire-opt.selected { border-color: var(--tc); background: rgba(255,255,255,0.1); }
+
+.laps-opt {
+  padding: 6px 12px; font-size: 10px; cursor: pointer;
+  background: rgba(255,255,255,0.06); border-radius: 3px;
+  border: 2px solid transparent; transition: border 0.15s;
+}
+.laps-opt.selected { border-color: var(--neon-blue); background: rgba(0,229,255,0.1); }
+
+#controls-hint { font-size: 9px; line-height: 1.9; opacity: 0.55; letter-spacing: 0.5px; }
+
+/* Footer */
+#menu-footer {
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex; justify-content: center;
+  background: rgba(0,0,0,0.3);
+}
+.btn-start {
+  background: linear-gradient(90deg, var(--f1-red), #b00000);
+  color: #fff; border: none; cursor: pointer;
+  padding: 14px 48px; font-family: var(--font-main);
+  font-size: 13px; font-weight: 700; letter-spacing: 3px;
+  border-radius: 4px; transition: all 0.15s;
+  box-shadow: 0 0 20px rgba(225, 6, 0, 0.4);
+}
+.btn-start:hover:not(:disabled) {
+  transform: translateY(-2px); box-shadow: 0 4px 30px rgba(225, 6, 0, 0.7);
+}
+.btn-start:disabled { background: #333; box-shadow: none; cursor: not-allowed; opacity: 0.5; }
+
+/* ===== RACE OVERLAY (parent of HUD) ===== */
+#race-overlay {
+  position: fixed; inset: 0; z-index: 10;
+  display: none; pointer-events: none;
+}
+
+/* ===== HUD ===== */
+#hud {
+  position: absolute; inset: 0;
+  pointer-events: none; display: none;
+}
+
+/* Speed box - bottom right */
+#hud-speed-box {
+  position: absolute; bottom: 24px; right: 24px;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; padding: 10px 16px;
+  text-align: center; min-width: 100px;
+  backdrop-filter: blur(8px);
+}
+#hud-speed { font-size: 52px; font-weight: 900; color: #fff; line-height: 1; }
+#hud-unit  { font-size: 10px; letter-spacing: 4px; color: #aaa; margin-top: 2px; }
+#hud-gear-label { font-size: 9px; letter-spacing: 3px; color: var(--neon-blue); margin-top: 8px; }
+#hud-gear  { font-size: 36px; font-weight: 700; color: var(--neon-blue); line-height: 1.1; }
+
+/* RPM bar - bottom, above speed box area */
+#hud-rpm-bar-wrap {
+  position: absolute; bottom: 128px; right: 24px;
+  width: 160px;
+}
+#hud-rpm-label { font-size: 9px; letter-spacing: 3px; color: #666; text-align: right; margin-bottom: 3px; }
+#hud-rpm-bar {
+  height: 5px; background: var(--neon-blue);
+  border-radius: 3px; width: 0%; max-width: 100%;
+  transition: width 0.05s;
+  box-shadow: 0 0 8px var(--neon-blue);
+}
+
+/* Pedals - bottom right, left of speed */
+#hud-pedals {
+  position: absolute; bottom: 24px; right: 144px;
+  display: flex; gap: 6px; align-items: flex-end;
+}
+.pedal-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pedal-label { font-size: 9px; letter-spacing: 1px; color: #666; }
+.pedal-track {
+  width: 16px; height: 60px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px; overflow: hidden;
+  display: flex; align-items: flex-end;
+}
+.pedal-fill { width: 100%; height: 0%; border-radius: 2px; }
+.throttle-fill { background: var(--neon-grn); box-shadow: 0 0 6px var(--neon-grn); }
+.brake-fill    { background: #ff2200; box-shadow: 0 0 6px #ff2200; }
+
+/* Tires - bottom left */
+#hud-tires {
+  position: absolute; bottom: 24px; left: 24px;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; padding: 10px 14px;
+  backdrop-filter: blur(8px); min-width: 130px;
+}
+#hud-tire-icon    { font-size: 24px; text-align: center; }
+#hud-tire-compound{ font-size: 11px; letter-spacing: 2px; text-align: center; margin: 4px 0; }
+#hud-tire-wear-bar-wrap {
+  width: 100%; height: 6px;
+  background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 4px 0;
+}
+#hud-tire-wear-bar { height: 100%; border-radius: 3px; transition: width 0.5s, background 0.5s; }
+#hud-tire-wear-pct { font-size: 10px; color: #aaa; text-align: right; }
+#hud-tire-temp     { font-size: 10px; color: #aaa; text-align: center; margin-top: 2px; }
+
+/* DRS */
+#hud-drs {
+  position: absolute; top: 24px; right: 24px;
+  padding: 6px 14px; font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  border-radius: 4px; border: 2px solid #333; color: #444;
+  background: rgba(0,0,0,0.5);
+  transition: all 0.15s;
+}
+#hud-drs.drs-available { border-color: #888; color: #888; }
+#hud-drs.drs-active {
+  border-color: var(--neon-grn); color: var(--neon-grn);
+  background: rgba(0,255,136,0.1);
+  box-shadow: 0 0 12px rgba(0,255,136,0.5);
+  animation: drsGlow 0.5s ease-in-out infinite alternate;
+}
+@keyframes drsGlow { to { box-shadow: 0 0 20px rgba(0,255,136,0.8); } }
+
+/* Lap info - top left */
+#hud-lap-info {
+  position: absolute; top: 24px; left: 24px;
+  background: rgba(0,0,0,0.75); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; padding: 10px 14px;
+  backdrop-filter: blur(8px);
+}
+#hud-lap-num  { font-size: 10px; letter-spacing: 3px; color: #aaa; }
+#hud-lap-time { font-size: 22px; font-weight: 700; margin: 4px 0; }
+#hud-best-lap { font-size: 10px; color: #ffdd00; letter-spacing: 1px; }
+#hud-delta    { font-size: 11px; margin-top: 3px; }
+
+/* Minimap */
+#hud-minimap {
+  position: absolute; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.12);
+  opacity: 0.85;
+}
+
+/* Message */
+#hud-msg {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px; font-weight: 900; letter-spacing: 4px;
+  text-shadow: 0 0 20px currentColor;
+  transition: opacity 0.3s; pointer-events: none;
+}
+
+/* Controls hint */
+#hud-controls {
+  position: absolute; bottom: 8px; right: 300px;
+  font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.4);
+  text-align: right; line-height: 1.8;
+  transition: opacity 2s;
+}
+
+/* ===== COUNTDOWN ===== */
+#countdown-display {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50; display: none;
+  font-size: 100px; font-weight: 900;
+  color: #fff; text-shadow: 0 0 40px #fff;
+  pointer-events: none;
+}
+.countdown-num { /* base class */ }
+.countdown-anim {
+  animation: countAnim 0.9s ease-out forwards;
+}
+@keyframes countAnim {
+  from { transform: translate(-50%,-50%) scale(1.5); opacity: 1; }
+  to   { transform: translate(-50%,-50%) scale(0.8); opacity: 0; }
+}
+
+/* F1 Start lights */
+#start-lights {
+  position: fixed; top: 28%; left: 50%; transform: translateX(-50%);
+  display: none; gap: 14px; z-index: 45; pointer-events: none;
+  background: rgba(0,0,0,0.7); padding: 14px 22px; border-radius: 8px;
+  border: 2px solid #333;
+}
+.start-light {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #220000;
+  border: 3px solid #440000;
+  transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
+}
+.start-light.on {
+  background: #ff0000;
+  border-color: #ff4444;
+  box-shadow: 0 0 20px #ff0000, 0 0 40px #ff000080;
+}
+
+/* ===== PAUSE OVERLAY ===== */
+#pause-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.85);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+}
+#pause-overlay h2 {
+  font-size: 36px; font-weight: 900; letter-spacing: 8px;
+  color: var(--neon-blue); text-shadow: 0 0 20px var(--neon-blue);
+}
+.overlay-btn {
+  background: rgba(255,255,255,0.08);
+  color: #fff; border: 1px solid rgba(255,255,255,0.2);
+  padding: 12px 40px; font-family: var(--font-main);
+  font-size: 12px; font-weight: 700; letter-spacing: 3px;
+  cursor: pointer; border-radius: 4px; transition: all 0.15s;
+  pointer-events: all;
+}
+.overlay-btn:hover { background: rgba(255,255,255,0.14); transform: translateY(-1px); }
+
+/* ===== FINISH OVERLAY ===== */
+#race-finish-overlay {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(0,0,0,0.9);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 20px;
+}
+#race-finish-overlay h2 {
+  font-size: 28px; font-weight: 900; letter-spacing: 5px; color: #ffdd00;
+  text-shadow: 0 0 20px #ffdd00;
+}
+#finish-time { font-size: 36px; font-weight: 700; color: #fff; letter-spacing: 2px; }
+.finish-btns { display: flex; gap: 14px; margin-top: 8px; }

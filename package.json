@@ -1,0 +1,8 @@
+{
+  "name": "f1-racegame",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve . -l 3000"
+  }
+}
