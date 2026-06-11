@@ -1,305 +1,162 @@
-// Menu.js - Main menu with circuit selection
+// Menu.js — circuit select + race setup screen.
 
 class Menu {
   constructor(onStart) {
     this.onStart = onStart;
-    this.el = document.getElementById('menu');
-    this.selectedCircuit = 21; // Las Vegas index (0-based)
-    this.selectedLivery = 'redbull';
-    this.selectedTire = 'medium';
-    this.selectedLaps = 5;
-    this._build();
+    this.root = document.getElementById('menu');
+    this.team = 'redbull';
+    this.tire = 'medium';
+    this.laps = 3;
+    this._built = false;
   }
 
   _build() {
-    this.el.innerHTML = `
-      <div id="menu-inner">
-        <div id="menu-header">
-          <div id="menu-f1-logo">F1</div>
-          <div id="menu-title">FORMULA 1</div>
-          <div id="menu-subtitle">RACING SIMULATOR</div>
-          <div id="menu-season">2024 SEASON</div>
-        </div>
+    const rounds = F1_CIRCUITS.map((c, i) => `
+      <div class="round${c.active ? ' active' : ' locked'}" ${c.active ? 'id="round-vegas"' : ''}>
+        <span class="rd-no">R${String(i + 1).padStart(2, '0')}</span>
+        <span class="rd-flag">${c.flag}</span>
+        <span class="rd-name">${c.name}</span>
+        ${c.active ? '<span class="rd-go">▶</span>' : '<span class="rd-lock">🔒</span>'}
+      </div>`).join('');
 
-        <div id="menu-content">
-          <!-- Left: circuit list -->
-          <div id="menu-left">
-            <div class="menu-section-title">SELECT CIRCUIT</div>
-            <div id="circuit-list"></div>
+    const teams = TEAMS.map(t => `
+      <div class="team-chip" data-team="${t.id}" title="${t.name}">
+        <span class="tc-color" style="background:#${new THREE.Color(t.primary).getHexString()};border-color:#${new THREE.Color(t.accent).getHexString()}"></span>
+        <span class="tc-name">${t.name}</span>
+      </div>`).join('');
+
+    this.root.innerHTML = `
+      <div class="menu-bg"></div>
+      <header class="menu-head">
+        <div class="menu-f1">F1</div>
+        <h1 class="menu-title"><span>LAS VEGAS</span> GRAND PRIX</h1>
+        <div class="menu-sub">NIGHT RACE · STREET CIRCUIT</div>
+      </header>
+      <div class="menu-grid">
+        <section class="panel calendar">
+          <h2>2024 캘린더</h2>
+          <div class="rounds">${rounds}</div>
+        </section>
+        <section class="panel preview">
+          <h2>서킷 프리뷰</h2>
+          <canvas id="menu-map" width="340" height="380"></canvas>
+          <div class="stats" id="menu-stats"></div>
+        </section>
+        <section class="panel setup">
+          <h2>레이스 설정</h2>
+          <h3>팀</h3>
+          <div class="teams">${teams}</div>
+          <h3>타이어</h3>
+          <div class="opts" id="tire-opts">
+            <button data-tire="soft" class="opt tire-s">S 소프트</button>
+            <button data-tire="medium" class="opt tire-m">M 미디엄</button>
+            <button data-tire="hard" class="opt tire-h">H 하드</button>
           </div>
-
-          <!-- Center: circuit preview + info -->
-          <div id="menu-center">
-            <div id="circuit-preview">
-              <canvas id="preview-canvas" width="320" height="260"></canvas>
-              <div id="preview-locked">
-                <div class="lock-icon">🔒</div>
-                <div>COMING SOON</div>
-              </div>
-            </div>
-            <div id="circuit-info">
-              <div id="ci-name">Las Vegas Street Circuit</div>
-              <div id="ci-details">
-                <span>🌍 USA</span>
-                <span>📏 6.12 km</span>
-                <span>🔄 50 laps</span>
-                <span>🌙 Night Race</span>
-              </div>
-              <div id="ci-stats">
-                <div>Corners: 17 &nbsp;|&nbsp; DRS Zones: 3</div>
-                <div>Counter-clockwise &nbsp;|&nbsp; Street Circuit</div>
-              </div>
-            </div>
+          <h3>랩 수</h3>
+          <div class="opts" id="lap-opts">
+            <button data-laps="3" class="opt">3</button>
+            <button data-laps="5" class="opt">5</button>
+            <button data-laps="10" class="opt">10</button>
           </div>
-
-          <!-- Right: car + race settings -->
-          <div id="menu-right">
-            <div class="menu-section-title">CAR SETUP</div>
-
-            <div class="setting-group">
-              <div class="setting-label">TEAM</div>
-              <div id="livery-options">
-                <div class="livery-opt selected" data-livery="redbull"   style="--c1:#1E3A8A;--c2:#FFD700">Red Bull</div>
-                <div class="livery-opt"          data-livery="mercedes"  style="--c1:#00D2BE;--c2:#C0C0C0">Mercedes</div>
-                <div class="livery-opt"          data-livery="ferrari"   style="--c1:#DC0000;--c2:#FFD700">Ferrari</div>
-                <div class="livery-opt"          data-livery="mclaren"   style="--c1:#FF8000;--c2:#000000">McLaren</div>
-                <div class="livery-opt"          data-livery="aston"     style="--c1:#006F62;--c2:#CEA14E">Aston M.</div>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <div class="setting-label">TIRE COMPOUND</div>
-              <div id="tire-options">
-                <div class="tire-opt" data-tire="soft"   style="--tc:#cc0000">● SOFT</div>
-                <div class="tire-opt selected" data-tire="medium" style="--tc:#ddcc00">● MEDIUM</div>
-                <div class="tire-opt" data-tire="hard"   style="--tc:#eeeeee">● HARD</div>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <div class="setting-label">RACE LAPS</div>
-              <div id="laps-options">
-                <div class="laps-opt" data-laps="3">3</div>
-                <div class="laps-opt selected" data-laps="5">5</div>
-                <div class="laps-opt" data-laps="10">10</div>
-                <div class="laps-opt" data-laps="25">25</div>
-                <div class="laps-opt" data-laps="50">50</div>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <div class="setting-label">CONTROLS</div>
-              <div id="controls-hint">
-                <div>W/↑ Throttle &nbsp; S/↓ Brake</div>
-                <div>A/← D/→ Steer</div>
-                <div>E = DRS &nbsp; C = Camera</div>
-                <div>1/2/3 = Tire change</div>
-                <div>ESC = Pause</div>
-              </div>
-            </div>
+          <button id="btn-race" class="race-btn">레이스 스타트</button>
+          <div class="controls-hint">
+            <b>조작법</b> — W/↑ 가속 · S/↓ 브레이크 · A/D 조향<br>
+            E DRS · C 카메라 · R 리셋 · 1/2/3 타이어(그리드) · ESC 일시정지
           </div>
-        </div>
+        </section>
+      </div>`;
+    this._built = true;
 
-        <div id="menu-footer">
-          <button id="btn-start" class="btn-start" disabled>
-            <span>SELECT AN ACTIVE CIRCUIT</span>
-          </button>
-        </div>
-      </div>
-    `;
+    // circuit math for the preview (no scene = geometry only)
+    this._previewTrack = new Track(null, LAS_VEGAS);
+    this._drawPreview();
+    document.getElementById('menu-stats').innerHTML = `
+      <div><b>${(this._previewTrack.lengthM / 1000).toFixed(2)} km</b><span>길이</span></div>
+      <div><b>${LAS_VEGAS.cornerCount}</b><span>코너</span></div>
+      <div><b>${LAS_VEGAS.drsZones.length}</b><span>DRS 존</span></div>
+      <div><b>${fmtTime(this._previewTrack.idealLap)}</b><span>예상 랩</span></div>`;
 
-    // Populate circuit list
-    this._buildCircuitList();
-
-    // Wire events
-    document.querySelectorAll('.livery-opt').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.livery-opt').forEach(e => e.classList.remove('selected'));
-        el.classList.add('selected');
-        this.selectedLivery = el.dataset.livery;
-      });
+    // wire events
+    this.root.querySelectorAll('.team-chip').forEach(el => {
+      el.addEventListener('click', () => this._select('team', el.dataset.team, '.team-chip', el));
     });
-
-    document.querySelectorAll('.tire-opt').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.tire-opt').forEach(e => e.classList.remove('selected'));
-        el.classList.add('selected');
-        this.selectedTire = el.dataset.tire;
-      });
+    this.root.querySelectorAll('#tire-opts .opt').forEach(el => {
+      el.addEventListener('click', () => this._select('tire', el.dataset.tire, '#tire-opts .opt', el));
     });
-
-    document.querySelectorAll('.laps-opt').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.laps-opt').forEach(e => e.classList.remove('selected'));
-        el.classList.add('selected');
-        this.selectedLaps = parseInt(el.dataset.laps);
-      });
+    this.root.querySelectorAll('#lap-opts .opt').forEach(el => {
+      el.addEventListener('click', () => this._select('laps', parseInt(el.dataset.laps, 10), '#lap-opts .opt', el));
     });
-
-    document.getElementById('btn-start').addEventListener('click', () => {
+    const start = () => {
       this.hide();
-      this.onStart({
-        livery: this.selectedLivery,
-        tire: this.selectedTire,
-        laps: this.selectedLaps,
+      this.onStart({ team: this.team, tire: this.tire, laps: this.laps });
+    };
+    document.getElementById('btn-race').addEventListener('click', start);
+    document.getElementById('round-vegas').addEventListener('click', start);
+
+    // defaults
+    this._select('team', this.team, '.team-chip', this.root.querySelector(`[data-team="${this.team}"]`));
+    this._select('tire', this.tire, '#tire-opts .opt', this.root.querySelector(`[data-tire="${this.tire}"]`));
+    this._select('laps', this.laps, '#lap-opts .opt', this.root.querySelector(`[data-laps="${this.laps}"]`));
+  }
+
+  _select(prop, value, selector, el) {
+    this[prop] = value;
+    this.root.querySelectorAll(selector).forEach(e => e.classList.remove('sel'));
+    if (el) el.classList.add('sel');
+  }
+
+  _drawPreview() {
+    const cv = document.getElementById('menu-map');
+    const c = cv.getContext('2d');
+    const tr = this._previewTrack;
+    const b = tr.bounds, pad = 26;
+    const s = Math.min((cv.width - pad * 2) / (b.maxX - b.minX), (cv.height - pad * 2) / (b.maxZ - b.minZ));
+    const ox = pad + ((cv.width - pad * 2) - (b.maxX - b.minX) * s) / 2 - b.minX * s;
+    const oz = pad + ((cv.height - pad * 2) - (b.maxZ - b.minZ) * s) / 2 - b.minZ * s;
+    c.clearRect(0, 0, cv.width, cv.height);
+
+    // glow pass + crisp pass
+    [['rgba(255,45,111,0.35)', 11], ['#fff', 4]].forEach(([col, w]) => {
+      c.strokeStyle = col; c.lineWidth = w; c.lineJoin = c.lineCap = 'round';
+      c.beginPath();
+      tr.samples.forEach((p, i) => {
+        const x = p.x * s + ox, y = p.z * s + oz;
+        i === 0 ? c.moveTo(x, y) : (i % 5 === 0 && c.lineTo(x, y));
       });
+      c.closePath(); c.stroke();
     });
-
-    // Auto-select Las Vegas
-    this._selectCircuit(21);
-  }
-
-  _buildCircuitList() {
-    const list = document.getElementById('circuit-list');
-    list.innerHTML = '';
-    F1_CIRCUITS.forEach((circuit, index) => {
-      const item = document.createElement('div');
-      item.className = 'circuit-item' + (circuit.active ? ' active' : ' locked');
-      item.dataset.index = index;
-      item.innerHTML = `
-        <span class="circuit-flag">${circuit.flag}</span>
-        <span class="circuit-name">${circuit.name}</span>
-        ${circuit.active ? '<span class="circuit-badge">READY</span>' : '<span class="circuit-lock">🔒</span>'}
-      `;
-      if (circuit.active) {
-        item.addEventListener('click', () => this._selectCircuit(index));
+    // DRS zones
+    c.strokeStyle = '#19f56e'; c.lineWidth = 4;
+    for (const z of tr._drsT) {
+      const N = tr.samples.length;
+      const i0 = tr._idxAt(z.from), count = (tr._idxAt(z.to) - i0 + N) % N;
+      c.beginPath();
+      for (let k = 0; k <= count; k += 5) {
+        const p = tr.samples[(i0 + k) % N];
+        const x = p.x * s + ox, y = p.z * s + oz;
+        k === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
       }
-      list.appendChild(item);
-    });
-
-    // Scroll to Las Vegas
-    setTimeout(() => {
-      const lasVegasEl = list.querySelector('[data-index="21"]');
-      if (lasVegasEl) lasVegasEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    }, 100);
-  }
-
-  _selectCircuit(index) {
-    this.selectedCircuit = index;
-    const circuit = F1_CIRCUITS[index];
-
-    document.querySelectorAll('.circuit-item').forEach(el => el.classList.remove('selected'));
-    const el = document.querySelector(`.circuit-item[data-index="${index}"]`);
-    if (el) el.classList.add('selected');
-
-    // Update circuit info
-    document.getElementById('ci-name').textContent = circuit.name;
-    document.getElementById('ci-details').innerHTML = circuit.active
-      ? `<span>🌍 ${circuit.country}</span><span>📏 6.12 km</span><span>🔄 50 laps</span><span>🌙 Night Race</span>`
-      : `<span>🌍 ${circuit.country}</span><span>🔒 Locked</span>`;
-
-    if (circuit.active) {
-      document.getElementById('preview-locked').style.display = 'none';
-      this._drawPreviewMap();
-      document.getElementById('btn-start').disabled = false;
-      document.getElementById('btn-start').innerHTML = `<span>▶ START RACE — ${circuit.name}</span>`;
-    } else {
-      document.getElementById('preview-locked').style.display = 'flex';
-      document.getElementById('btn-start').disabled = true;
-      document.getElementById('btn-start').innerHTML = `<span>SELECT AN ACTIVE CIRCUIT</span>`;
+      c.stroke();
     }
+    // corner labels
+    c.font = 'bold 10px Arial'; c.fillStyle = '#9fb2d8';
+    c.textAlign = 'center';
+    for (const corner of LAS_VEGAS.corners) {
+      const [x, z] = LAS_VEGAS.waypoints[corner.wp];
+      const info = tr.getTrackInfo(x, z);
+      const lx = (x + info.nx * 9) * s + ox, ly = (z + info.nz * 9) * s + oz;
+      c.fillText(corner.name, lx, ly);
+    }
+    // start dot
+    const s0 = tr.samples[0];
+    c.fillStyle = '#ffd012';
+    c.beginPath(); c.arc(s0.x * s + ox, s0.z * s + oz, 4, 0, Math.PI * 2); c.fill();
   }
 
-  _drawPreviewMap() {
-    const canvas = document.getElementById('preview-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    // Gradient background
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#0a0a1a');
-    grad.addColorStop(1, '#1a1030');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
-    const pts = LAS_VEGAS.waypoints;
-    const xs = pts.map(p => p[0]), zs = pts.map(p => p[1]);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minZ = Math.min(...zs), maxZ = Math.max(...zs);
-    const PAD = 22;
-    const scaleX = (W - PAD * 2) / (maxX - minX);
-    const scaleZ = (H - PAD * 2) / (maxZ - minZ);
-    const scale = Math.min(scaleX, scaleZ);
-    const offX = (W - (maxX - minX) * scale) / 2;
-    const offZ = (H - (maxZ - minZ) * scale) / 2;
-
-    const toC = ([x, z]) => [offX + (x - minX) * scale, offZ + (z - minZ) * scale];
-
-    // Track outline (thick)
-    ctx.beginPath();
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 12;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    pts.forEach((p, i) => {
-      const [cx, cy] = toC(p);
-      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
-    });
-    ctx.closePath();
-    ctx.stroke();
-
-    // Track surface
-    ctx.beginPath();
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 6;
-    pts.forEach((p, i) => {
-      const [cx, cy] = toC(p);
-      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
-    });
-    ctx.closePath();
-    ctx.stroke();
-
-    // Track center line dashed
-    ctx.beginPath();
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = '#00e5ff55';
-    ctx.lineWidth = 1.5;
-    pts.forEach((p, i) => {
-      const [cx, cy] = toC(p);
-      if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
-    });
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // S/F line
-    const [sx, sy] = toC(pts[0]);
-    ctx.fillStyle = '#00ff88';
-    ctx.fillRect(sx - 6, sy - 2, 12, 4);
-
-    // Turn numbers (T1, T3, T11 etc)
-    const turnLabels = [
-      { idx: 8, label: 'T1' },
-      { idx: 16, label: 'T3' },
-      { idx: 33, label: 'T6' },
-      { idx: 40, label: 'T7' },
-      { idx: 51, label: 'T9' },
-      { idx: 60, label: 'T11' },
-      { idx: 79, label: 'T12' },
-      { idx: 87, label: 'T13' },
-    ];
-    ctx.font = 'bold 8px monospace';
-    ctx.fillStyle = '#aaffff';
-    turnLabels.forEach(({ idx, label }) => {
-      if (idx < pts.length) {
-        const [cx, cy] = toC(pts[idx]);
-        ctx.fillText(label, cx + 3, cy - 3);
-      }
-    });
-
-    // DRS arrows
-    ctx.fillStyle = '#00ff88aa';
-    ctx.font = '7px monospace';
-    ctx.fillText('DRS', offX + (0 - minX) * scale, offZ + (10 - minZ) * scale);
-
-    // Circuit name overlay
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = '#ffffff99';
-    ctx.fillText('LAS VEGAS STREET CIRCUIT', 10, H - 10);
+  show() {
+    if (!this._built) this._build();
+    this.root.style.display = 'flex';
   }
 
-  show() { this.el.style.display = 'flex'; }
-  hide() { this.el.style.display = 'none'; }
+  hide() { this.root.style.display = 'none'; }
 }

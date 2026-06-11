@@ -1,126 +1,148 @@
-// AudioManager.js - Engine sound via Web Audio API (no assets needed)
+// AudioManager.js — fully synthesised audio (Web Audio, no assets):
+// V6-style engine, gear-shift blip, tire screech, wind, impacts, start beeps.
 
 class AudioManager {
   constructor() {
     this.ctx = null;
-    this.oscillator = null;
-    this.gainNode = null;
-    this.distortion = null;
-    this.running = false;
-    this._started = false;
+    this.muted = false;
+    this._lastGear = 1;
   }
 
-  // Must be called after a user gesture
-  start() {
-    if (this._started) return;
-    try {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this._buildGraph();
-      this._started = true;
-    } catch (e) {
-      console.warn('Web Audio not available:', e);
+  // must be called from a user gesture
+  ensure() {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
     }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = this.ctx = new AC();
+
+    this.master = ctx.createGain();
+    this.master.gain.value = 0.28;
+    this.master.connect(ctx.destination);
+
+    // ── engine: two detuned saws + sub square → lowpass ──
+    this.engGain = ctx.createGain(); this.engGain.gain.value = 0;
+    this.engFilter = ctx.createBiquadFilter();
+    this.engFilter.type = 'lowpass'; this.engFilter.frequency.value = 800; this.engFilter.Q.value = 2;
+    this.engGain.connect(this.engFilter).connect(this.master);
+
+    this.oscA = ctx.createOscillator(); this.oscA.type = 'sawtooth';
+    this.oscB = ctx.createOscillator(); this.oscB.type = 'sawtooth'; this.oscB.detune.value = 9;
+    this.oscSub = ctx.createOscillator(); this.oscSub.type = 'square';
+    const subGain = ctx.createGain(); subGain.gain.value = 0.5;
+    this.oscA.connect(this.engGain);
+    this.oscB.connect(this.engGain);
+    this.oscSub.connect(subGain).connect(this.engGain);
+    this.oscA.start(); this.oscB.start(); this.oscSub.start();
+
+    // ── shared noise buffer ──
+    const len = ctx.sampleRate * 1.2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.noiseBuf = buf;
+
+    // screech: bandpassed looped noise
+    this.scrGain = ctx.createGain(); this.scrGain.gain.value = 0;
+    const scrFilter = ctx.createBiquadFilter();
+    scrFilter.type = 'bandpass'; scrFilter.frequency.value = 950; scrFilter.Q.value = 7;
+    const scrSrc = ctx.createBufferSource();
+    scrSrc.buffer = buf; scrSrc.loop = true;
+    scrSrc.connect(scrFilter).connect(this.scrGain).connect(this.master);
+    scrSrc.start();
+
+    // wind: lowpassed looped noise
+    this.windGain = ctx.createGain(); this.windGain.gain.value = 0;
+    const windFilter = ctx.createBiquadFilter();
+    windFilter.type = 'lowpass'; windFilter.frequency.value = 480;
+    const windSrc = ctx.createBufferSource();
+    windSrc.buffer = buf; windSrc.loop = true; windSrc.playbackRate.value = 0.6;
+    windSrc.connect(windFilter).connect(this.windGain).connect(this.master);
+    windSrc.start();
+
+    // kerb rumble
+    this.rumbleGain = ctx.createGain(); this.rumbleGain.gain.value = 0;
+    const rumFilter = ctx.createBiquadFilter();
+    rumFilter.type = 'lowpass'; rumFilter.frequency.value = 130;
+    const rumSrc = ctx.createBufferSource();
+    rumSrc.buffer = buf; rumSrc.loop = true; rumSrc.playbackRate.value = 0.4;
+    rumSrc.connect(rumFilter).connect(this.rumbleGain).connect(this.master);
+    rumSrc.start();
   }
 
-  _buildGraph() {
-    const ctx = this.ctx;
-
-    // Master gain
-    this.masterGain = ctx.createGain();
-    this.masterGain.gain.value = 0.18;
-    this.masterGain.connect(ctx.destination);
-
-    // Engine oscillator 1 (fundamental)
-    this.osc1 = ctx.createOscillator();
-    this.osc1.type = 'sawtooth';
-    this.osc1.frequency.value = 80;
-
-    // Engine oscillator 2 (harmonic layer)
-    this.osc2 = ctx.createOscillator();
-    this.osc2.type = 'square';
-    this.osc2.frequency.value = 160;
-
-    // Gain for each oscillator
-    this.gain1 = ctx.createGain(); this.gain1.gain.value = 0.6;
-    this.gain2 = ctx.createGain(); this.gain2.gain.value = 0.25;
-
-    // Distortion (gives harsh F1 engine character)
-    this.waveShaper = ctx.createWaveShaper();
-    this.waveShaper.curve = this._makeDistortionCurve(80);
-    this.waveShaper.oversample = '2x';
-
-    // Low-pass filter (rolling off high frequencies for realism)
-    this.lpf = ctx.createBiquadFilter();
-    this.lpf.type = 'lowpass';
-    this.lpf.frequency.value = 4000;
-    this.lpf.Q.value = 1.5;
-
-    // High-pass filter (removes very low rumble)
-    this.hpf = ctx.createBiquadFilter();
-    this.hpf.type = 'highpass';
-    this.hpf.frequency.value = 60;
-
-    // Exhaust crackle (noise burst on decel)
-    this.crackleGain = ctx.createGain();
-    this.crackleGain.gain.value = 0;
-
-    // Connect graph
-    this.osc1.connect(this.gain1);
-    this.osc2.connect(this.gain2);
-    this.gain1.connect(this.waveShaper);
-    this.gain2.connect(this.waveShaper);
-    this.waveShaper.connect(this.hpf);
-    this.hpf.connect(this.lpf);
-    this.lpf.connect(this.masterGain);
-
-    this.osc1.start();
-    this.osc2.start();
-    this.running = true;
+  setMuted(m) {
+    this.muted = m;
+    if (this.master) this.master.gain.value = m ? 0 : 0.28;
   }
 
-  _makeDistortionCurve(amount) {
-    const n = 256, curve = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const x = (i * 2) / n - 1;
-      curve[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+  // car: player Car instance; surface: string
+  update(car, dt) {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+
+    // engine pitch from rpm (V6 firing frequency feel)
+    const f = 30 + (car.rpm / PHYS.rpmMax) * 230;
+    this.oscA.frequency.setTargetAtTime(f, now, 0.02);
+    this.oscB.frequency.setTargetAtTime(f * 1.005, now, 0.02);
+    this.oscSub.frequency.setTargetAtTime(f / 2, now, 0.02);
+    const load = 0.25 + 0.75 * car.input.throttle;
+    this.engGain.gain.setTargetAtTime(0.13 + 0.20 * load * Math.min(1, car.rpm / 9000), now, 0.05);
+    this.engFilter.frequency.setTargetAtTime(420 + car.input.throttle * 2600 + (car.rpm / PHYS.rpmMax) * 1500, now, 0.06);
+
+    // gear shift blip
+    if (car.gear !== this._lastGear) {
+      this._lastGear = car.gear;
+      this.engGain.gain.cancelScheduledValues(now);
+      this.engGain.gain.setValueAtTime(0.05, now);
+      this.engGain.gain.setTargetAtTime(0.25, now + 0.05, 0.04);
     }
-    return curve;
+
+    // screech follows slide / lockup
+    const scr = Math.min(1, car.sliding * 1.2 + (car.lockup ? 0.5 : 0)) * Math.min(1, car.speed / 25);
+    this.scrGain.gain.setTargetAtTime(scr * 0.22, now, 0.07);
+
+    // wind by speed³
+    const w = Math.pow(car.speed / PHYS.maxSpeed, 3);
+    this.windGain.gain.setTargetAtTime(w * 0.16, now, 0.1);
+
+    // kerb / runoff rumble
+    const rum = car.surface === 'kerb' ? 0.30 : (car.surface === 'runoff' ? 0.16 : 0);
+    this.rumbleGain.gain.setTargetAtTime(rum * Math.min(1, car.speed / 20), now, 0.05);
   }
 
-  // Call every frame with current car state
-  update(rpm, throttle, surface) {
-    if (!this.running || !this.ctx) return;
-
-    const t = this.ctx.currentTime;
-    const smoothing = 0.05;
-
-    // Map RPM 800-15000 → frequency range 40-520 Hz (engine pitch)
-    const freq = 40 + (rpm - 800) / (15000 - 800) * 480;
-    this.osc1.frequency.setTargetAtTime(freq, t, smoothing);
-    this.osc2.frequency.setTargetAtTime(freq * 2.05, t, smoothing);
-
-    // Throttle affects gain and filter cutoff
-    const targetGain = 0.08 + throttle * 0.15;
-    this.masterGain.gain.setTargetAtTime(targetGain, t, smoothing);
-
-    // Open up high frequencies under throttle (more aggressive sound)
-    const lpFreq = 1200 + throttle * 3800 + rpm / 15000 * 1500;
-    this.lpf.frequency.setTargetAtTime(lpFreq, t, smoothing);
-
-    // Extra roughness on gravel/kerbs
-    if (surface === 'kerb') {
-      this.waveShaper.curve = this._makeDistortionCurve(120);
-    } else {
-      this.waveShaper.curve = this._makeDistortionCurve(80);
-    }
+  thump(strength = 1) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 220;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(Math.min(0.8, 0.25 * strength), now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(now, Math.random());
+    src.stop(now + 0.3);
   }
 
-  stop() {
-    if (!this.running) return;
-    try {
-      this.osc1.stop(); this.osc2.stop();
-      this.ctx.close();
-    } catch (e) {}
-    this.running = false;
+  beep(freq = 440, dur = 0.18, vol = 0.2) {
+    if (!this.ctx || this.muted) return;
+    const ctx = this.ctx, now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    osc.connect(g).connect(this.master);
+    osc.start(now); osc.stop(now + dur);
+  }
+
+  stopEngine() {
+    if (this.engGain && this.ctx) this.engGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+    if (this.scrGain && this.ctx) this.scrGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    if (this.windGain && this.ctx) this.windGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    if (this.rumbleGain && this.ctx) this.rumbleGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
   }
 }
