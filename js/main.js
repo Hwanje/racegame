@@ -1,70 +1,51 @@
-// main.js - Entry point
+// main.js — boot: wires Menu ↔ Game and the static overlays.
 
 let game = null;
 let menu = null;
+let lastOptions = null;
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Pre-warm Three.js renderer with loading screen
-  showLoading();
+  const loading = document.getElementById('loading-screen');
 
-  setTimeout(() => {
+  if (typeof THREE === 'undefined') {
+    loading.innerHTML = '<div class="loading-text">Three.js 로드 실패 — js/lib/three.min.js 확인</div>';
+    return;
+  }
+
+  try {
     game = new Game();
-    game.start();
+  } catch (err) {
+    loading.innerHTML = `<div class="loading-text">WebGL을 사용할 수 없습니다<br>${err.message}</div>`;
+    return;
+  }
 
-    menu = new Menu((options) => {
-      startRace(options);
-    });
-    menu.show();
+  menu = new Menu((options) => {
+    lastOptions = options;
+    game.load(LAS_VEGAS, options);
+  });
+  menu.show();
 
-    hideLoading();
-  }, 300);
-});
+  loading.style.opacity = '0';
+  setTimeout(() => { loading.style.display = 'none'; }, 600);
 
-function startRace(options) {
-  document.getElementById('race-overlay').style.display = 'block';
-  document.getElementById('pause-overlay').style.display = 'none';
-  document.getElementById('race-finish-overlay').style.display = 'none';
-
-  game.load(LAS_VEGAS, options);
-}
-
-function showLoading() {
-  const el = document.getElementById('loading-screen');
-  if (el) el.style.display = 'flex';
-}
-
-function hideLoading() {
-  const el = document.getElementById('loading-screen');
-  if (el) el.style.opacity = '0';
-  setTimeout(() => { if (el) el.style.display = 'none'; }, 500);
-}
-
-// Pause overlay buttons
-document.addEventListener('DOMContentLoaded', () => {
-  const resumeBtn = document.getElementById('btn-resume');
-  if (resumeBtn) resumeBtn.addEventListener('click', () => game.resume());
-
-  const mainMenuBtn = document.getElementById('btn-main-menu');
-  if (mainMenuBtn) mainMenuBtn.addEventListener('click', () => {
+  // pause overlay
+  document.getElementById('btn-resume').addEventListener('click', () => game.togglePause());
+  document.getElementById('btn-pause-restart').addEventListener('click', () => {
     document.getElementById('pause-overlay').style.display = 'none';
-    document.getElementById('race-overlay').style.display = 'none';
-    if (game.hud) game.hud.hide();
-    game.state = 'idle';
+    game.load(LAS_VEGAS, lastOptions);
+  });
+  document.getElementById('btn-pause-menu').addEventListener('click', () => {
+    game.exitToMenu();
     menu.show();
   });
 
-  const finishMenuBtn = document.getElementById('btn-finish-menu');
-  if (finishMenuBtn) finishMenuBtn.addEventListener('click', () => {
-    document.getElementById('race-finish-overlay').style.display = 'none';
-    document.getElementById('race-overlay').style.display = 'none';
-    if (game.hud) game.hud.hide();
-    game.state = 'idle';
-    menu.show();
+  // results overlay
+  document.getElementById('btn-res-restart').addEventListener('click', () => {
+    game.hud.hideResults();
+    game.load(LAS_VEGAS, lastOptions);
   });
-
-  const finishRestartBtn = document.getElementById('btn-finish-restart');
-  if (finishRestartBtn) finishRestartBtn.addEventListener('click', () => {
-    document.getElementById('race-finish-overlay').style.display = 'none';
-    startRace({ livery: menu.selectedLivery, tire: menu.selectedTire, laps: menu.selectedLaps });
+  document.getElementById('btn-res-menu').addEventListener('click', () => {
+    game.exitToMenu();
+    menu.show();
   });
 });

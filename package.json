@@ -1,8 +1,12 @@
 {
   "name": "f1-racegame",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
-    "dev": "npx serve . -l 3000"
+    "dev": "npx serve . -l 3000",
+    "test": "node test/smoke.js"
+  },
+  "devDependencies": {
+    "three": "0.158.0"
   }
 }
