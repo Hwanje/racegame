@@ -32,6 +32,7 @@ class HUD {
         </div>
       </div>
       <div class="hud-cluster">
+        <div class="pos-pill" id="pos-pill">P8</div>
         <div class="rpm-strip" id="rpm-strip">${'<i></i>'.repeat(16)}</div>
         <div class="cluster-main">
           <div class="speed-block"><div class="speed" id="hud-speed">0</div><div class="unit">KM/H</div></div>
@@ -52,7 +53,7 @@ class HUD {
       </div>
       <canvas class="hud-map" id="hud-map" width="210" height="250"></canvas>
       <div class="hud-toast" id="hud-toast"></div>
-      <div class="hud-help">C 카메라 · E DRS · R 리셋 · M 음소거 · ESC 일시정지</div>
+      <div class="hud-help">C 카메라(체이스·콕핏·TV·드론) · E DRS · R 리셋 · M 음소거 · ESC 일시정지</div>
     `;
     this.map = document.getElementById('hud-map');
     this.mapCtx = this.map.getContext('2d');
@@ -133,6 +134,9 @@ class HUD {
     if (this._txtTimer <= 0) {
       this._txtTimer = 0.1;
       this.$('hud-lap').textContent = `LAP ${Math.min(car.lap, game.totalLaps)}/${game.totalLaps}`;
+      const pos = game.standings.findIndex(s => s.car === car) + 1;
+      this.$('pos-pill').textContent = `P${pos || '-'}`;
+      this.$('pos-pill').className = 'pos-pill' + (pos === 1 ? ' lead' : '');
       this.$('ht-last').textContent = fmtTime(car.lastLap || null);
       this.$('ht-best').textContent = fmtTime(car.bestLap);
       this._updateTower(game);

@@ -60,8 +60,8 @@ class Menu {
           </div>
           <button id="btn-race" class="race-btn">레이스 스타트</button>
           <div class="controls-hint">
-            <b>조작법</b> — W/↑ 가속 · S/↓ 브레이크 · A/D 조향<br>
-            E DRS · C 카메라 · R 리셋 · 1/2/3 타이어(그리드) · ESC 일시정지
+            <b>조작법</b> — W/↑ 가속 · S/↓ 브레이크 · A/D 조향 · E DRS<br>
+            C 카메라(체이스·콕핏·TV·드론) · R 리셋 · 1/2/3 타이어(그리드) · ESC 일시정지
           </div>
         </section>
       </div>`;
