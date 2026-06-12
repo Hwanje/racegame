@@ -89,10 +89,10 @@ vm.runInContext(`
   const gp = grid[0];
   car.setPose(gp.x, gp.z, gp.heading);
   const ai = new AIDriver(car, track, 0.95);
-  ai.launched = true; ai.reaction = -1;
+  ai.reaction = -1;   // skip the reaction wait; launch init still runs
 
   const dt = 1 / 120;
-  let raceTime = 0, wallHits = 0, crossed = false, maxSpeed = 0;
+  let raceTime = 0, wallHits = 0, crossed = false, maxSpeed = 0, launchDev = 0;
   const lapTimes = [];
   let prevT = track.getTrackInfo(car.pos.x, car.pos.z).t;
   car.progress = prevT - 1;
@@ -106,6 +106,12 @@ vm.runInContext(`
     ai.update(dt, raceTime, [car]);
     car.update(dt, info);
     maxSpeed = Math.max(maxSpeed, car.speed);
+    if (raceTime < 5) {   // launch must be straight, no weaving off the grid
+      let dev = car.heading - info.tangentAngle;
+      while (dev > Math.PI) dev -= Math.PI * 2;
+      while (dev < -Math.PI) dev += Math.PI * 2;
+      launchDev = Math.max(launchDev, Math.abs(dev));
+    }
 
     // wall clamp (mirror of Game._wallCollision core)
     const limit = info.wallHalf - 0.125;
@@ -143,6 +149,7 @@ vm.runInContext(`
   out.wallHits = wallHits;
   out.maxSpeed = maxSpeed;
   out.tireWear = car.tireWear;
+  out.launchDev = launchDev;
 
   // ── multi-car: traffic/overtake/slipstream paths run NaN-free ──
   const pack = [];
@@ -153,7 +160,7 @@ vm.runInContext(`
     c.setPose(g.x, g.z, g.heading);
     c.progress = -0.01 * i;
     const d = new AIDriver(c, track, 0.96 - i * 0.015);
-    d.launched = true; d.reaction = -1;
+    d.reaction = -1;
     pack.push(c); drivers.push(d);
   }
   let packNaN = false, packTime = 0;
@@ -219,6 +226,7 @@ check('AI completes ≥ 2 laps', r.lapTimes.length >= 2, `${r.lapTimes.length} l
 check('lap time 75–150 s', r.lapTimes.every(t => t > 75 && t < 150));
 check('AI stays off the walls (≤ 120 contact frames)', r.wallHits <= 120, `${r.wallHits}`);
 check('AI uses real pace (> 230 km/h)', r.maxSpeed * 3.6 > 230, (r.maxSpeed * 3.6).toFixed(0) + ' km/h');
+check('clean launch (no weave, < 0.25 rad)', r.launchDev < 0.25, r.launchDev.toFixed(3) + ' rad');
 
 console.log('\n══ 5-car pack (90 s) ══');
 check('no NaN in pack sim', r.packNaN === false);

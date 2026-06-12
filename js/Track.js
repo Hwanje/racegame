@@ -19,6 +19,7 @@ class Track {
       this._texCache = {};
       this._buildRoad();
       this._buildKerbs();
+      this._buildDrsPaint();
       this._buildWalls();
       this._buildRunoffPatches();
       this._buildStartFinish();
@@ -326,35 +327,102 @@ class Track {
 
   _buildRoad() {
     const tex = this._canvasTex('asphalt', 256, 256, (c, w, h) => {
-      c.fillStyle = '#1d1f24'; c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 1600; i++) {
-        const g = 22 + Math.random() * 26;
-        c.fillStyle = `rgb(${g},${g + 2},${g + 7})`;
+      c.fillStyle = '#24262e'; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 1800; i++) {
+        const g = 28 + Math.random() * 30;
+        c.fillStyle = `rgb(${g},${g + 2},${g + 8})`;
         c.fillRect(Math.random() * w, Math.random() * h, 1.6, 1.6);
       }
       // racing groove (darker band, slightly off-center)
       const grad = c.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(0.34, 'rgba(0,0,0,0.36)');
-      grad.addColorStop(0.62, 'rgba(0,0,0,0.36)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+      grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(0.34, 'rgba(0,0,0,0.32)');
+      grad.addColorStop(0.62, 'rgba(0,0,0,0.32)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
       c.fillStyle = grad; c.fillRect(0, 0, w, h);
-      // edge lines
-      c.fillStyle = '#e8e8ee';
-      c.fillRect(3, 0, 5, h); c.fillRect(w - 8, 0, 5, h);
+      // bright painted edges (street circuit)
+      c.fillStyle = '#f4f4f8';
+      c.fillRect(2, 0, 7, h); c.fillRect(w - 9, 0, 7, h);
     });
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.42, metalness: 0.42, color: 0xb9c0cc });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.38, metalness: 0.45, color: 0xc3cad8 });
     const W = this.data.widthHalf;
     this._ribbon(-W, W, 0, mat, 3, 0.5);
   }
 
+  // contiguous sample-index ranges where the track actually corners
+  _cornerRanges(thresh = 0.0045, dilate = 45) {
+    const N = this.samples.length;
+    const mask = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      if (Math.abs(this.curvSmooth[i]) > thresh) {
+        for (let j = -dilate; j <= dilate; j++) mask[(i + j + N) % N] = 1;
+      }
+    }
+    const ranges = [];
+    let start = -1;
+    // begin the scan at a guaranteed straight (start line) so wrap is clean
+    let scan0 = 0;
+    for (let i = 0; i < N; i++) if (!mask[i]) { scan0 = i; break; }
+    for (let k = 0; k <= N; k++) {
+      const i = (scan0 + k) % N;
+      if (mask[i] && start < 0) start = i;
+      else if (!mask[i] && start >= 0) {
+        ranges.push([start, ((i - start + N) % N)]);
+        start = -1;
+      }
+    }
+    return ranges;
+  }
+
+  // index-based ribbon with along-length UVs
+  _ribbonIdx(i0, count, latA, latB, y, material, vScale = 0.9, step = 3) {
+    const N = this.samples.length;
+    const pos = [], uv = [], idx = [];
+    let k = 0;
+    for (let off = 0; off <= count; off += step, k++) {
+      const s = this.samples[(i0 + off) % N];
+      pos.push(s.x + s.nx * latA, y, s.z + s.nz * latA);
+      pos.push(s.x + s.nx * latB, y, s.z + s.nz * latB);
+      const vv = s.cum * vScale;
+      uv.push(0, vv, 1, vv);
+      if (off + step <= count) { const o = k * 2; idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, material);
+    this.scene.add(mesh);
+    this.meshes.push(mesh);
+    return mesh;
+  }
+
   _buildKerbs() {
     const tex = this._canvasTex('kerb', 64, 128, (c, w, h) => {
-      c.fillStyle = '#d8202a'; c.fillRect(0, 0, w, h / 2);
-      c.fillStyle = '#e9e9ec'; c.fillRect(0, h / 2, w, h / 2);
+      c.fillStyle = '#e02430'; c.fillRect(0, 0, w, h / 2);
+      c.fillStyle = '#f2f2f5'; c.fillRect(0, h / 2, w, h / 2);
     });
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.15 });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.2 });
     const W = this.data.widthHalf, K = this.data.kerbWidth;
-    this._ribbon(W, W + K, 0.013, mat, 4, 0.9);
-    this._ribbon(-W - K, -W, 0.013, mat, 4, 0.9);
+    // striped kerbs only through the corners (the straights keep painted edges)
+    for (const [i0, count] of this._cornerRanges()) {
+      this._ribbonIdx(i0, count, W, W + K, 0.013, mat);
+      this._ribbonIdx(i0, count, -W - K, -W, 0.013, mat);
+    }
+  }
+
+  // glowing green strips along the road edges inside DRS zones
+  _buildDrsPaint() {
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x10c956, transparent: true, opacity: 0.55,
+      blending: THREE.AdditiveBlending, depthWrite: false });
+    const W = this.data.widthHalf;
+    const N = this.samples.length;
+    for (const z of this._drsT) {
+      const i0 = this._idxAt(z.from);
+      const count = (this._idxAt(z.to) - i0 + N) % N;
+      this._ribbonIdx(i0, count, W - 0.14, W - 0.04, 0.008, mat, 0.9, 6);
+      this._ribbonIdx(i0, count, -W + 0.04, -W + 0.14, 0.008, mat, 0.9, 6);
+    }
   }
 
   _buildWalls() {
